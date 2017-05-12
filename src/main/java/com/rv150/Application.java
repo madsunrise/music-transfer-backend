@@ -1,6 +1,6 @@
 package com.rv150;
 
-import com.rv150.websocket.MyWebSocketHandler;
+import com.rv150.websocket.MyHandler;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
@@ -9,9 +9,6 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.socket.WebSocketHandler;
 import org.springframework.web.socket.handler.PerConnectionWebSocketHandler;
 
-/**
- * Created by sergeybutorin on 20.02.17.
- */
 @SpringBootApplication
 public class Application {
 
@@ -22,7 +19,7 @@ public class Application {
 
     @Bean
     public WebSocketHandler gameWebSocketHandler() {
-        return new PerConnectionWebSocketHandler(MyWebSocketHandler.class);
+        return new PerConnectionWebSocketHandler(MyHandler.class);
     }
 
     public static void main(String[] args) throws Exception {
