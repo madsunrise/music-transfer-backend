@@ -9,8 +9,11 @@ import org.springframework.web.socket.*;
 import org.springframework.web.socket.handler.AbstractWebSocketHandler;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
 
+import static com.rv150.websocket.Message.ANSWER_ON_REQUEST;
 import static com.rv150.websocket.Message.RECEIVER_ID;
 import static com.rv150.websocket.Message.SENDING_FINISHED;
 
@@ -25,6 +28,8 @@ public class MyHandler extends AbstractWebSocketHandler {
     private final BiMap<Integer, WebSocketSession> connections = HashBiMap.create();
 
     private final BiMap<WebSocketSession, WebSocketSession> pairs = HashBiMap.create();
+
+    private final Map<Integer, WebSocketSession> waitingForAccept = new HashMap<>(); // ID принимающего к сессии отправителя оО
 
     public static final String NO_RECEIVER_WITH_THIS_ID = "No receiver found for this ID!";
 
@@ -74,10 +79,27 @@ public class MyHandler extends AbstractWebSocketHandler {
             try {
                 Message msg = objectMapper.readValue((String)message.getPayload(), Message.class);
                 switch (msg.getType()) {
-                    case RECEIVER_ID:
+                    case RECEIVER_ID: {
                         LOGGER.info("We get receiver id = {}", msg.getData());
-                        makePair(session, msg);
+                        int receiverId = Integer.valueOf(msg.getData());
+                        waitingForAccept.put(receiverId, session);
+                        // TODO Make info message
+                        String info = "file_example.mp3";
+                        requestReceiver(receiverId, info);
                         break;
+                    }
+                    case ANSWER_ON_REQUEST: {
+                        boolean answer = Boolean.valueOf(msg.getData());
+                        LOGGER.info("We get answer on request: " + String.valueOf(answer));
+                        if (answer) {
+                            int receiverId = connections.inverse().get(session); // Получаем ID текущего соединения
+                            WebSocketSession sender = waitingForAccept.get(receiverId);
+                            makePair(sender, session);
+                        }
+                        // TODO make cancel
+                        break;
+                    }
+
                     case SENDING_FINISHED:
                         LOGGER.info("FINISHED!");
                         finishSending(session);
@@ -96,21 +118,24 @@ public class MyHandler extends AbstractWebSocketHandler {
     }
 
 
-    private void makePair(WebSocketSession sender, Message msg) {
-        int receiverId = Integer.valueOf(msg.getData());
-        WebSocketSession receiver = connections.get(receiverId);
-        if (receiver == null) {
-            LOGGER.error("No receiver found with ID = {}!", receiverId);
-            try {
-                sendErrorSignal(sender, NO_RECEIVER_WITH_THIS_ID);
-            }
-            catch (IOException ex) {
-                LOGGER.error("Failed to send error signal about no receiver with this ID! {}", ex.getMessage());
-            }
-            return;
+
+    private void requestReceiver(int receiverId, String fileName) {
+        LOGGER.info("Requesting receiver {} with filename = {}...", receiverId, fileName);
+        final Message message = new Message(Message.REQUEST_SEND, fileName);
+        try {
+            final String json = objectMapper.writeValueAsString(message);
+            WebSocketSession session = connections.get(receiverId);
+            session.sendMessage(new TextMessage(json));
         }
+        catch (Exception e) {
+            LOGGER.error("Sending ID to user FAILED");
+        }
+    }
+
+
+    private void makePair(WebSocketSession sender, WebSocketSession receiver) {
         pairs.put(sender, receiver);
-        LOGGER.debug("New pair! Total: {}", pairs.size());
+        LOGGER.debug("New pair! Total pairs: {}", pairs.size());
     }
 
     private void finishSending(WebSocketSession sender) {

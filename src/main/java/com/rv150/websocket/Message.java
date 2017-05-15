@@ -15,6 +15,8 @@ public class Message {
     public static final String INITIALIZE_USER = "GettingID";
     public static final String RECEIVER_ID = "receiver_id";
     public static final String SENDING_FINISHED = "sending_finished";
+    public static final String REQUEST_SEND = "requesting_send";
+    public static final String ANSWER_ON_REQUEST = "answer_request";
     public static final String ERROR = "error";
 
 
