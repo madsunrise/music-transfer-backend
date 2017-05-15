@@ -23,11 +23,11 @@ public class MyHandler extends AbstractWebSocketHandler {
     private static final Logger LOGGER = LoggerFactory.getLogger(MyHandler.class.getName());
 
     private final ObjectMapper objectMapper = new ObjectMapper();
-    private final BiMap<Integer, WebSocketSession> connections = HashBiMap.create();
+    private final BiMap<String, WebSocketSession> connections = HashBiMap.create();
 
     private final BiMap<WebSocketSession, WebSocketSession> pairs = HashBiMap.create();
 
-    private final Map<Integer, WebSocketSession> waitingForAccept = new HashMap<>(); // ID принимающего к сессии отправителя оО
+    private final Map<String, WebSocketSession> waitingForAccept = new HashMap<>(); // ID принимающего к сессии отправителя оО
 
 
 
@@ -40,7 +40,7 @@ public class MyHandler extends AbstractWebSocketHandler {
 
     @Override
     public void afterConnectionEstablished(WebSocketSession session) throws Exception {
-        Integer id = genRandomId();
+        String id = genRandomId();
         while (connections.containsKey(id)) {
             id = genRandomId();
         }
@@ -64,9 +64,9 @@ public class MyHandler extends AbstractWebSocketHandler {
 
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
-        LOGGER.info("Binary connection closed");
         removePair(session);
         removeConnection(session);
+        LOGGER.info("Binary connection closed, total: {}", connections.size());
     }
 
 
@@ -77,17 +77,19 @@ public class MyHandler extends AbstractWebSocketHandler {
                 Message msg = objectMapper.readValue((String)message.getPayload(), Message.class);
                 switch (msg.getType()) {
                     case RECEIVER_ID: {
-                        LOGGER.info("We get receiver id = {}", msg.getData()); // Getting ID from sender
-                        int receiverId = Integer.valueOf(msg.getData());
+                        SendRequest request = objectMapper.readValue(msg.getData(), SendRequest.class);
+                        String receiverId = request.getReceiverId();
+                        LOGGER.info("We get receiver id = {}", receiverId); // Getting ID from sender
                         if (!connections.containsKey(receiverId)) {
                             // No receiver with this ID
+                            LOGGER.error("No receiver with this ID!");
                             sendErrorSignal(session, RECEIVER_NOT_FOUND);
                             return;
                         }
                         waitingForAccept.put(receiverId, session);
                         // TODO Make info message
-                        String info = "file_example.mp3";
-                        requestReceiver(receiverId, info);
+                        String fileName = request.getFileName();
+                        requestReceiver(receiverId, fileName);
                         break;
                     }
 
@@ -96,7 +98,7 @@ public class MyHandler extends AbstractWebSocketHandler {
                         boolean answer = Boolean.valueOf(msg.getData());
                         LOGGER.info("We get answer on request: " + String.valueOf(answer));
                         if (answer) {
-                            int receiverId = connections.inverse().get(session); // Получаем ID текущего соединения
+                            String receiverId = connections.inverse().get(session); // Получаем ID текущего соединения
                             WebSocketSession sender = waitingForAccept.get(receiverId);
                             makePair(sender, session);
                             allowTransferring(sender);
@@ -124,7 +126,7 @@ public class MyHandler extends AbstractWebSocketHandler {
 
 
 
-    private void requestReceiver(int receiverId, String fileName) {
+    private void requestReceiver(String receiverId, String fileName) {
         LOGGER.info("Requesting receiver {} with filename = {}...", receiverId, fileName);
         final Message message = new Message(Message.REQUEST_SEND, fileName);
         try {
@@ -211,8 +213,8 @@ public class MyHandler extends AbstractWebSocketHandler {
         LOGGER.info("Handled binary message?");
     }
 
-    private int genRandomId() {
-        return ThreadLocalRandom.current().nextInt(1000, 10000);
+    private String genRandomId() {
+        return String.valueOf(ThreadLocalRandom.current().nextInt(1000, 10000));
     }
 
     private void removeConnection(WebSocketSession session) {
@@ -228,8 +230,8 @@ public class MyHandler extends AbstractWebSocketHandler {
     }
 
 
-    private void sendIdToUser(WebSocketSession webSocketSession, int id) {
-        final Message message = new Message(Message.INITIALIZE_USER, String.valueOf(id));
+    private void sendIdToUser(WebSocketSession webSocketSession, String id) {
+        final Message message = new Message(Message.INITIALIZE_USER, id);
         try {
             final String json = objectMapper.writeValueAsString(message);
             webSocketSession.sendMessage(new TextMessage(json));
