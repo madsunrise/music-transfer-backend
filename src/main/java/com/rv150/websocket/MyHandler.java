@@ -1,5 +1,6 @@
 package com.rv150.websocket;
 
+import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
@@ -72,56 +73,54 @@ public class MyHandler extends AbstractWebSocketHandler {
 
     @Override
     public void handleMessage(WebSocketSession session, WebSocketMessage<?> message) {
-        if (message.getPayloadLength() < 50) {
-            try {
-                Message msg = objectMapper.readValue((String)message.getPayload(), Message.class);
-                switch (msg.getType()) {
-                    case RECEIVER_ID: {
-                        SendRequest request = objectMapper.readValue(msg.getData(), SendRequest.class);
-                        String receiverId = request.getReceiverId();
-                        LOGGER.info("We get receiver id = {}", receiverId); // Getting ID from sender
-                        if (!connections.containsKey(receiverId)) {
-                            // No receiver with this ID
-                            LOGGER.error("No receiver with this ID!");
-                            sendErrorSignal(session, RECEIVER_NOT_FOUND);
-                            return;
-                        }
-                        waitingForAccept.put(receiverId, session);
-                        // TODO Make info message
-                        String fileName = request.getFileName();
-                        requestReceiver(receiverId, fileName);
-                        break;
+        try {
+            Message msg = objectMapper.readValue((String) message.getPayload(), Message.class);
+            switch (msg.getType()) {
+                case RECEIVER_ID: {
+                    SendRequest request = objectMapper.readValue(msg.getData(), SendRequest.class);
+                    String receiverId = request.getReceiverId();
+                    LOGGER.info("We get receiver id = {}", receiverId); // Getting ID from sender
+                    if (!connections.containsKey(receiverId)) {
+                        // No receiver with this ID
+                        LOGGER.error("No receiver with this ID!");
+                        sendErrorSignal(session, RECEIVER_NOT_FOUND);
+                        return;
                     }
-
-
-                    case ANSWER_ON_REQUEST: {
-                        boolean answer = Boolean.valueOf(msg.getData());
-                        LOGGER.info("We get answer on request: " + String.valueOf(answer));
-                        if (answer) {
-                            String receiverId = connections.inverse().get(session); // Получаем ID текущего соединения
-                            WebSocketSession sender = waitingForAccept.get(receiverId);
-                            makePair(sender, session);
-                            allowTransferring(sender);
-                        }
-                        // TODO make cancel
-                        break;
-                    }
-
-                    case SENDING_FINISHED:
-                        LOGGER.info("FINISHED!");
-                        finishSending(session);
-                        break;
-                    default:
-                        redirectFrame(session, message);
+                    waitingForAccept.put(receiverId, session);
+                    // TODO Make info message
+                    String fileName = request.getFileName();
+                    requestReceiver(receiverId, fileName);
+                    break;
                 }
-                return;
+
+
+                case ANSWER_ON_REQUEST: {
+                    boolean answer = Boolean.valueOf(msg.getData());
+                    LOGGER.info("We get answer on request: " + String.valueOf(answer));
+                    if (answer) {
+                        String receiverId = connections.inverse().get(session); // Получаем ID текущего соединения
+                        WebSocketSession sender = waitingForAccept.get(receiverId);
+                        makePair(sender, session);
+                        allowTransferring(sender);
+                    }
+                    // TODO make cancel
+                    break;
+                }
+
+                case SENDING_FINISHED:
+                    LOGGER.info("FINISHED!");
+                    finishSending(session);
+                    break;
+                default:
+                    redirectFrame(session, message);
             }
-            catch (Exception ex) {
-                LOGGER.error(ex.getMessage());
-                redirectFrame(session, message);
-            }
+        } catch (JsonParseException ex) {
+            redirectFrame(session, message);
         }
-        redirectFrame(session, message);
+        catch (Exception ex) {
+            LOGGER.error("Something wrong: {}", ex.getMessage());
+            redirectFrame(session, message);
+        }
     }
 
 
