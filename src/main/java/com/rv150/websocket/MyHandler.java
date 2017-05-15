@@ -114,7 +114,7 @@ public class MyHandler extends AbstractWebSocketHandler {
                 default:
                     redirectFrame(session, message);
             }
-        } catch (JsonParseException ex) {
+        } catch (JsonParseException | ClassCastException ex) {
             redirectFrame(session, message);
         }
         catch (Exception ex) {
