@@ -51,15 +51,6 @@ public class MyHandler extends AbstractWebSocketHandler {
         LOGGER.info("New binary session, total: {}", connections.size());
     }
 
-    @Override
-    protected void handlePongMessage(WebSocketSession session, PongMessage message) throws Exception {
-        LOGGER.info("binary 13");
-    }
-
-    @Override
-    public void handleTransportError(WebSocketSession session, Throwable exception) throws Exception {
-        LOGGER.info("binary 323");
-    }
 
 
 
@@ -73,6 +64,10 @@ public class MyHandler extends AbstractWebSocketHandler {
 
     @Override
     public void handleMessage(WebSocketSession session, WebSocketMessage<?> message) {
+        if (message.getPayloadLength() < 1000) {
+            redirectFrame(session, message);
+            return;
+        }
         try {
             Message msg = objectMapper.readValue((String) message.getPayload(), Message.class);
             switch (msg.getType()) {
@@ -122,6 +117,7 @@ public class MyHandler extends AbstractWebSocketHandler {
             redirectFrame(session, message);
         }
     }
+
 
 
 
