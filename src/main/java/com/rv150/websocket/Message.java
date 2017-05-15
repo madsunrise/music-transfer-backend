@@ -18,6 +18,8 @@ public class Message {
     public static final String REQUEST_SEND = "requesting_send";
     public static final String ANSWER_ON_REQUEST = "answer_request";
     public static final String ERROR = "error";
+    public static final String RECEIVER_NOT_FOUND = "receiver_not_found";
+    public static final String ALLOW_TRANSFERRING = "allow_transferring";
 
 
     public void setType(String type) {

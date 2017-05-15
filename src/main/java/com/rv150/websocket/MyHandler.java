@@ -13,9 +13,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
 
-import static com.rv150.websocket.Message.ANSWER_ON_REQUEST;
-import static com.rv150.websocket.Message.RECEIVER_ID;
-import static com.rv150.websocket.Message.SENDING_FINISHED;
+import static com.rv150.websocket.Message.*;
 
 /**
  * Created by ivan on 11.05.17.
@@ -31,7 +29,6 @@ public class MyHandler extends AbstractWebSocketHandler {
 
     private final Map<Integer, WebSocketSession> waitingForAccept = new HashMap<>(); // ID принимающего к сессии отправителя оО
 
-    public static final String NO_RECEIVER_WITH_THIS_ID = "No receiver found for this ID!";
 
 
 
@@ -80,14 +77,21 @@ public class MyHandler extends AbstractWebSocketHandler {
                 Message msg = objectMapper.readValue((String)message.getPayload(), Message.class);
                 switch (msg.getType()) {
                     case RECEIVER_ID: {
-                        LOGGER.info("We get receiver id = {}", msg.getData());
+                        LOGGER.info("We get receiver id = {}", msg.getData()); // Getting ID from sender
                         int receiverId = Integer.valueOf(msg.getData());
+                        if (!connections.containsKey(receiverId)) {
+                            // No receiver with this ID
+                            sendErrorSignal(session, RECEIVER_NOT_FOUND);
+                            return;
+                        }
                         waitingForAccept.put(receiverId, session);
                         // TODO Make info message
                         String info = "file_example.mp3";
                         requestReceiver(receiverId, info);
                         break;
                     }
+
+
                     case ANSWER_ON_REQUEST: {
                         boolean answer = Boolean.valueOf(msg.getData());
                         LOGGER.info("We get answer on request: " + String.valueOf(answer));
@@ -95,6 +99,7 @@ public class MyHandler extends AbstractWebSocketHandler {
                             int receiverId = connections.inverse().get(session); // Получаем ID текущего соединения
                             WebSocketSession sender = waitingForAccept.get(receiverId);
                             makePair(sender, session);
+                            allowTransferring(sender);
                         }
                         // TODO make cancel
                         break;
@@ -138,6 +143,18 @@ public class MyHandler extends AbstractWebSocketHandler {
         LOGGER.debug("New pair! Total pairs: {}", pairs.size());
     }
 
+    private void allowTransferring(WebSocketSession session) {
+        final Message message = new Message(Message.ALLOW_TRANSFERRING, "ok");
+        try {
+            final String json = objectMapper.writeValueAsString(message);
+            session.sendMessage(new TextMessage(json));
+        }
+        catch (Exception e) {
+            LOGGER.error("Sending allow transferring signal failed", e);
+        }
+    }
+
+
     private void finishSending(WebSocketSession sender) {
         WebSocketSession receiver = pairs.get(sender);
         pairs.remove(sender);
@@ -157,7 +174,7 @@ public class MyHandler extends AbstractWebSocketHandler {
         catch (NullPointerException ex) {
             LOGGER.error("Receiver is null! Sending error msg...");
             try {
-                sendErrorSignal(sender, "Receiver is not found");
+                sendErrorSignal(sender, RECEIVER_NOT_FOUND);
                 removePair(sender);
             }
             catch (Exception e) {
