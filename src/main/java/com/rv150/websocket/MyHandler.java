@@ -64,7 +64,7 @@ public class MyHandler extends AbstractWebSocketHandler {
 
     @Override
     public void handleMessage(WebSocketSession session, WebSocketMessage<?> message) {
-        if (message.getPayloadLength() < 1000) {
+        if (message.getPayloadLength() > 1024) {
             redirectFrame(session, message);
             return;
         }
@@ -85,6 +85,7 @@ public class MyHandler extends AbstractWebSocketHandler {
                     // TODO Make info message
                     String fileName = request.getFileName();
                     requestReceiver(receiverId, fileName);
+                    sendWaitingSignalToSender(session);
                     break;
                 }
 
@@ -201,6 +202,12 @@ public class MyHandler extends AbstractWebSocketHandler {
         session.sendMessage(new TextMessage(json));
     }
 
+
+    private void sendWaitingSignalToSender(WebSocketSession session) throws IOException {
+        final Message message = new Message(Message.RECEIVER_FOUND, "");
+        final String json = objectMapper.writeValueAsString(message);
+        session.sendMessage(new TextMessage(json));
+    }
 
 
     @Override
