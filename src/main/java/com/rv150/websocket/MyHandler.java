@@ -83,8 +83,7 @@ public class MyHandler extends AbstractWebSocketHandler {
                     }
                     waitingForAccept.put(receiverId, session);
                     // TODO Make info message
-                    String fileName = request.getFileName();
-                    requestReceiver(receiverId, fileName);
+                    requestReceiver(receiverId, request);
                     sendWaitingSignalToSender(session);
                     break;
                 }
@@ -122,10 +121,11 @@ public class MyHandler extends AbstractWebSocketHandler {
 
 
 
-    private void requestReceiver(String receiverId, String fileName) {
-        LOGGER.info("Requesting receiver {} with filename = {}...", receiverId, fileName);
-        final Message message = new Message(Message.REQUEST_SEND, fileName);
+    private void requestReceiver(String receiverId, SendRequest request) {
+        LOGGER.info("Requesting receiver {} with filename = {}...", receiverId, request.getFileName());
         try {
+            final String body = objectMapper.writeValueAsString(request);
+            final Message message = new Message(Message.REQUEST_SEND, body);
             final String json = objectMapper.writeValueAsString(message);
             WebSocketSession session = connections.get(receiverId);
             session.sendMessage(new TextMessage(json));
